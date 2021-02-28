@@ -1,0 +1,16 @@
+{
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "master.mdb",
+      "database": "./master.mdb"
+    },
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "meta",
+      "database": "./meta"
+    }
+  ]
+}
