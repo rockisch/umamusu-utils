@@ -16,7 +16,7 @@ You can set `SKIP_EXISTING` to true inside the script to only download new files
 
 Data downloaded by this script will be stored at `/data`.
 
-### extract_story
+### story_extract
 
 Extract the strings related to the in-game stories.
 We then store these strings in a json file, which may be used later for translations.
