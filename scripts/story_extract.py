@@ -1,23 +1,26 @@
 import enum
 import json
+import itertools
 import sqlite3
 import UnityPy
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
 from UnityPy.enums import ClassIDType
 
-LIMIT = 200
-MAIN_STORY_SEG_COUNT = 5
+from consts import root_file, root_folder
 
-ROOT = Path(__file__).with_name('story')
-ROOT.mkdir(parents=True, exist_ok=True)
-DATA_ROOT = Path(__file__).with_name('data')
-if not DATA_ROOT.exists():
-    raise Exception("you must first download the game data using 'download.py'")
-QUERY_STORY_SEGMENTS_COLUMNS = ', '.join([
+LIMIT = 200
+
+DATA_ROOT = root_folder('data')
+STORY_ROOT = root_folder('story')
+MAIN_STORY_TABLE = 'main_story_data'
+MAIN_STORY_SEG_MAX = 5
+MAIN_STORY_SEG_COLUMNS = ', '.join([
     column
-    for i in range(1, MAIN_STORY_SEG_COUNT + 1) for column in [f'"story_type_{i}"', f'"story_id_{i}"']
+    for i in range(1, MAIN_STORY_SEG_MAX + 1) for column in [f'"story_type_{i}"', f'"story_id_{i}"']
 ])
+
 
 class StoryType(enum.Enum):
     TEXT = 1
@@ -45,13 +48,18 @@ class StorySegment:
 
 @dataclass
 class MainStoryData:
-    part_id: int
     episode_index: int
     story_number: int
-    stories_segments: list[StorySegment]
+    stories_segments: List[StorySegment]
 
     def __str__(self):
         return f'<Story {self.part_id}/{self.episode_index}>'
+
+
+@dataclass
+class MainStoryPartData:
+    part_id: int
+    main_stories: List[MainStoryData]
 
 
 def get_main_story_data(main_story: MainStoryData):
@@ -96,21 +104,26 @@ def get_main_story_data(main_story: MainStoryData):
     return story_data
 
 
-def main(main_stories: list[MainStoryData]):
-    for story in main_stories:
-        story_data = get_main_story_data(story)
-        story_path = Path(ROOT, 'main', str(story.part_id), f'{story.episode_index}.json')
-        story_path.parent.mkdir(parents=True, exist_ok=True)
-        with story_path.open('w', encoding='utf8') as f:
-            json.dump(story_data, f, ensure_ascii=False, indent=4, default=str)
+def main(main_story_part: MainStoryPartData):
+    part_data = [
+        {
+            'episode': main_story.episode_index,
+            'data': get_main_story_data(main_story),
+        }
+        for main_story in main_story_part.main_stories
+    ]
+    story_path = Path(STORY_ROOT, 'jp', 'main', f'{main_story_part.part_id}.json')
+    story_path.parent.mkdir(parents=True, exist_ok=True)
+    with story_path.open('w', encoding='utf8') as f:
+        json.dump(part_data, f, ensure_ascii=False, indent=4, default=str)
 
 
-master_conn = sqlite3.connect('master.mdb')
-offset = 0
-while True:
+master_conn = sqlite3.connect(root_file('master.mdb').absolute())
+max_part_id = master_conn.execute(f'SELECT MAX("part_id") FROM "{MAIN_STORY_TABLE}"').fetchone()[0]
+for part_id in itertools.count(1):
     main_stories = []
-    for row in master_conn.execute(f'SELECT "part_id", "episode_index", "story_number", {QUERY_STORY_SEGMENTS_COLUMNS} FROM "main_story_data" LIMIT {LIMIT} OFFSET {offset}'):
-        main_data, segment_data = row[:3], row[3:]
+    for row in master_conn.execute(f'SELECT "episode_index", "story_number", {MAIN_STORY_SEG_COLUMNS} FROM "{MAIN_STORY_TABLE}" WHERE "part_id" = {part_id}'):
+        main_data, segment_data = row[:2], row[2:]
         story_segments = []
         skip = False
         for story_type, story_id in zip(segment_data[::2], segment_data[1::2]):
@@ -125,8 +138,7 @@ while True:
     if not main_stories:
         break
 
-    main(main_stories)
-    offset += len(main_stories)
-    if offset % 1000:
-        print('MAIN STORY PROGRESS:', offset)
+    main_story_part = MainStoryPartData(part_id, main_stories)
 
+    print(f'PROCESSING PART {part_id}')
+    main(main_story_part)

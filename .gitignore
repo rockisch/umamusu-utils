@@ -1,5 +1,6 @@
 data/
 story/
+__pycache__/
 master.mdb
 meta
 story.zip
