@@ -1,18 +1,26 @@
 # Uma Musume Utils
 
-This repo contains stuff that will help you handle with data from Uma Musu.
+Utils for scrapping UmaMusume files.
 
 ## Requirements
 
-You must insert into the root folder your own copies of the `meta` and `master.mdb` files.
+You must insert into the root folder your own copy of the `meta` file.
+It can be fetched from the game's root dir: `/root/data/data/jp.co.cygames.umamusume/files`.
+
+Some python scripts have dependencies, run `pip install -r requirements.txt` to install all of them.
 
 ## Utils
 
-### download
+All utils reside inside the `scripts` folder.
 
-Downloads **ALL** game files according to your `meta` file.
+### data_download
+
+Downloads **ALL** game assets according to your `meta` file.
 If the game is updated, all you have to do is update the `meta` file and re-run this script.
-You can set `SKIP_EXISTING` to true inside the script to only download new files.
+The script only downloads new files, you can set `SKIP_EXISTING` to false inside the script to force a full re-download.
+
+**IMPORTANT** If doing a full download, this will suck your machine's network as hard as a JAV actress.
+Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
 
 Data downloaded by this script will be stored at `/data`.
 

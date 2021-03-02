@@ -118,7 +118,7 @@ def main(main_story_part: MainStoryPartData):
         json.dump(part_data, f, ensure_ascii=False, indent=4, default=str)
 
 
-master_conn = sqlite3.connect(root_file('master.mdb').absolute())
+master_conn = sqlite3.connect(Path(DATA_ROOT, 'master.mdb').absolute())
 max_part_id = master_conn.execute(f'SELECT MAX("part_id") FROM "{MAIN_STORY_TABLE}"').fetchone()[0]
 for part_id in itertools.count(1):
     main_stories = []
