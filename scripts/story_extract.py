@@ -7,14 +7,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 from UnityPy.enums import ClassIDType
+from collections import defaultdict
 
-from consts import root_file, root_folder
+from utils import get_master_conn, get_storage_folder, get_logger, get_girls_dict
+
+logger = get_logger(__name__)
 
 LIMIT = 200
+SKIP_EXISTING = True
 
-DATA_ROOT = root_folder('data')
-STORY_ROOT = root_folder('story')
+DATA_ROOT = get_storage_folder('data')
+STORY_ROOT = get_storage_folder('story')
 MAIN_STORY_TABLE = 'main_story_data'
+EVENT_STORY_TABLE = 'story_event_story_data'
+CHARACTER_STORY_TABLE = 'chara_story_data'
 MAIN_STORY_SEG_MAX = 5
 MAIN_STORY_SEG_COLUMNS = ', '.join([
     column
@@ -22,123 +28,177 @@ MAIN_STORY_SEG_COLUMNS = ', '.join([
 ])
 
 
-class StoryType(enum.Enum):
+class SegmentKind(enum.Enum):
     TEXT = 1
     LIVE = 2
     SPECIAL = 3
     RACE = 4
 
     def __str__(self):
-        if self is StoryType.TEXT:
+        if self is self.TEXT:
             return 'text'
-        if self is StoryType.LIVE:
+        if self is self.LIVE:
             return 'live'
-        if self is StoryType.SPECIAL:
+        if self is self.SPECIAL:
             return 'special'
-        if self is StoryType.RACE:
+        if self is self.RACE:
             return 'race'
 
-@dataclass
-class StorySegment:
-    story_type: StoryType
-    story_id: int
-
-    def __str__(self):
-        return f'<Segment {self.story_id}, type={self.story_type}>'
 
 @dataclass
-class MainStoryData:
-    episode_index: int
-    story_number: int
-    stories_segments: List[StorySegment]
-
-    def __str__(self):
-        return f'<Story {self.part_id}/{self.episode_index}>'
+class LineData:
+    name: str
+    text: str
 
 
 @dataclass
-class MainStoryPartData:
-    part_id: int
-    main_stories: List[MainStoryData]
+class SegmentData:
+    id: int
+    order: int
+    kind: SegmentKind
+
+    def get_lines(self) -> List[LineData]:
+        return fetch_segment_lines(self)
 
 
-def get_main_story_data(main_story: MainStoryData):
-    story_data = []
-    for segment_id, segment in enumerate(main_story.stories_segments, start=1):
-        segment_data = []
-        if segment.story_type is StoryType.TEXT:
-            story_id = str(segment.story_id).zfill(9)
-            segment_data_path = Path(DATA_ROOT, 'story/data', story_id[:2], story_id[2:6], f'storytimeline_{story_id}')
-            env = UnityPy.load(segment_data_path.as_posix())
-            if not env.assets:
-                print(f'ERROR: unable to find {segment} file for story {main_story}')
-                print('SKIPPING')
-                continue
+@dataclass
+class EpisodeData:
+    id: int
+    segments: List[SegmentData]
 
-            objects = {}
-            timeline = None
-            for obj in env.objects:
-                if obj.type != ClassIDType.MonoBehaviour:
-                    continue
 
-                if not timeline:
-                    obj_data = obj.read()
-                    if obj_data.name == f'storytimeline_{story_id}':
-                        timeline = obj_data
+@dataclass
+class StoryData:
+    id: int
+    kind: str
+    episodes: List[EpisodeData]
 
-                objects[obj.path_id] = obj
 
-            if not timeline:
-                print(f'ERROR: unable to find timeline for segment {segment} n. {segment_id}')
-                print('SKIPPING')
-                continue
+def story_extract():
+    save_stories(fetch_main_story_data())
+    save_stories(fetch_event_story_data())
+    save_stories(fetch_character_story_data())
 
-            for block in timeline.type_tree['BlockList']:
-                for clip in block['TextTrack']['ClipList']:
-                    obj = objects[clip['m_PathID']]
-                    type_tree = obj.read().type_tree
-                    segment_data.append({'name': type_tree['Name'], 'text': type_tree['Text']})
 
-        story_data.append({'segment': segment_id, 'type': segment.story_type, 'data': segment_data})
+def save_stories(stories: List[StoryData]):
+    for story in stories:
+        save_story(story)
 
+
+def save_story(story: StoryData):
+    name = story.id
+    if story.kind == 'chara':
+        name = get_girls_dict()[story.id]
+
+    path = Path(STORY_ROOT, story.kind, f'{name}.txt')
+    if SKIP_EXISTING and path.exists():
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = format_story(story)
+    with path.open('w', encoding='utf8') as f:
+        f.write(data)
+
+
+def format_story(story: StoryData):
+    episodes_data = []
+    for episode in story.episodes:
+        segments_data = []
+        for segment in episode.segments:
+            lines_data = []
+            try:
+                lines = segment.get_lines()
+            except Exception as e:
+                logger.error(e, extra={'story': story})
+                lines = []
+
+            for line in lines:
+                if line.text:
+                    line_data = '{}{}\n'.format(('- {}:\n'.format(line.name) if line.name else ''), line.text.replace('\r\n', '\n'))
+                    lines_data.append(line_data)
+
+            segment_data = '\n'.join(lines_data)
+            segments_data.append(f'Segment {segment.order} ({str(segment.kind)}):\n{segment_data}')
+
+        episode_data = '\n'.join(segments_data)
+        episodes_data.append(f'Episode {episode.id}:\n{episode_data}')
+
+    story_data = '\n'.join(episodes_data)
     return story_data
 
 
-def main(main_story_part: MainStoryPartData):
-    part_data = [
-        {
-            'episode': main_story.episode_index,
-            'data': get_main_story_data(main_story),
-        }
-        for main_story in main_story_part.main_stories
-    ]
-    story_path = Path(STORY_ROOT, 'jp', 'main', f'{main_story_part.part_id}.json')
-    story_path.parent.mkdir(parents=True, exist_ok=True)
-    with story_path.open('w', encoding='utf8') as f:
-        json.dump(part_data, f, ensure_ascii=False, indent=4, default=str)
+def fetch_segment_lines(segment: SegmentData):
+    lines = []
+    if segment.kind is SegmentKind.TEXT:
+        story_id = str(segment.id).zfill(9)
+        storyline_name = f'storytimeline_{story_id}'
+        storytimeline_path = Path(DATA_ROOT, 'story/data', story_id[:2], story_id[2:6], storyline_name)
+        env = UnityPy.load(storytimeline_path.as_posix())
+        if not env.assets:
+            raise FileNotFoundError(storytimeline_path)
+
+        objects = {}
+        timeline = None
+        for obj in env.objects:
+            if obj.type != ClassIDType.MonoBehaviour:
+                continue
+
+            if not timeline:
+                obj_data = obj.read()
+                if obj_data.name == storyline_name:
+                    timeline = obj_data
+                    continue
+
+            objects[obj.path_id] = obj
+
+        if not timeline:
+            raise Exception("storytimeline exists, but it's timeline is missing")
+
+        for block in timeline.type_tree['BlockList']:
+            for clip in block['TextTrack']['ClipList']:
+                obj = objects[clip['m_PathID']]
+                type_tree = obj.read().type_tree
+                lines.append(LineData(type_tree['Name'], type_tree['Text']))
+
+    return lines
 
 
-master_conn = sqlite3.connect(Path(DATA_ROOT, 'master.mdb').absolute())
-max_part_id = master_conn.execute(f'SELECT MAX("part_id") FROM "{MAIN_STORY_TABLE}"').fetchone()[0]
-for part_id in itertools.count(1):
-    main_stories = []
-    for row in master_conn.execute(f'SELECT "episode_index", "story_number", {MAIN_STORY_SEG_COLUMNS} FROM "{MAIN_STORY_TABLE}" WHERE "part_id" = {part_id}'):
-        main_data, segment_data = row[:2], row[2:]
-        story_segments = []
-        skip = False
-        for story_type, story_id in zip(segment_data[::2], segment_data[1::2]):
-            if story_type != 0:
-                story_segments.append(StorySegment(StoryType(story_type), story_id))
+def fetch_main_story_data():
+    with get_master_conn() as master_conn:
+        part_episodes = defaultdict(list)
+        for part_id, episode_index, *segment_data in master_conn.execute(f'SELECT "part_id", "episode_index", {MAIN_STORY_SEG_COLUMNS} FROM "{MAIN_STORY_TABLE}"'):
+            segments = [
+                SegmentData(story_id, i, SegmentKind(story_type))
+                for i, (story_type, story_id) in enumerate(zip(segment_data[::2], segment_data[1::2]), start=1) if story_type != 0
+            ]
 
-        if skip:
-            continue
+            part_episodes[part_id].append(EpisodeData(episode_index, segments))
 
-        main_stories.append(MainStoryData(*main_data, story_segments))
+        main_story_data = [StoryData(part_id, 'main', episodes) for part_id, episodes in part_episodes.items()]
+        return main_story_data
 
-    if not main_stories:
-        break
 
-    main_story_part = MainStoryPartData(part_id, main_stories)
+def fetch_event_story_data():
+    with get_master_conn() as master_conn:
+        story_event_episodes = defaultdict(list)
+        for event_id, episode_index, story_id  in master_conn.execute(f'SELECT "story_event_id", "episode_index_id", "story_id_1" FROM "{EVENT_STORY_TABLE}"'):
+            segments = [SegmentData(story_id, 1, SegmentKind.TEXT)]
+            story_event_episodes[event_id].append(EpisodeData(episode_index, segments))
 
-    print(f'PROCESSING PART {part_id}')
-    main(main_story_part)
+        event_story_data = [StoryData(event_id, 'event', episodes) for event_id, episodes in story_event_episodes.items()]
+        return event_story_data
+
+
+def fetch_character_story_data():
+    with get_master_conn() as master_conn:
+        chara_episodes = defaultdict(list)
+        for chara_id, episode_index, story_id  in master_conn.execute(f'SELECT "chara_id", "episode_index", "story_id" FROM "{CHARACTER_STORY_TABLE}"'):
+            segments = [SegmentData(story_id, 1, SegmentKind.TEXT)]
+            chara_episodes[chara_id].append(EpisodeData(episode_index, segments))
+
+        character_story_data = [StoryData(chara_id, 'chara', episodes) for chara_id, episodes in chara_episodes.items()]
+        return character_story_data
+
+
+if __name__ == '__main__':
+    story_extract()

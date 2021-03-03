@@ -1,6 +1,11 @@
-data/
-story/
-__pycache__/
-master.mdb
-meta
-story.zip
+# Storage
+storage/*
+!storage/.gitkeep
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Python cache
+*.pyc
+*.pyo

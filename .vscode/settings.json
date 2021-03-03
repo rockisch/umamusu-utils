@@ -4,13 +4,13 @@
       "previewLimit": 50,
       "driver": "SQLite",
       "name": "master.mdb",
-      "database": "./master.mdb"
+      "database": "./storage/master.mdb"
     },
     {
       "previewLimit": 50,
       "driver": "SQLite",
       "name": "meta",
-      "database": "./meta"
+      "database": "./storage/meta"
     }
   ]
 }

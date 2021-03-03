@@ -4,14 +4,14 @@ Utils for scrapping UmaMusume files.
 
 ## Requirements
 
-You must insert into the root folder your own copy of the `meta` file.
+You must insert into the `/storage` folder your own copy of the `meta` file.
 It can be fetched from the game's root dir: `/root/data/data/jp.co.cygames.umamusume/files`.
 
 Some python scripts have dependencies, run `pip install -r requirements.txt` to install all of them.
 
 ## Utils
 
-All utils reside inside the `scripts` folder.
+All utils reside inside the `src` folder.
 
 ### data_download
 
@@ -23,6 +23,12 @@ The script only downloads new files, you can set `SKIP_EXISTING` to false inside
 Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
 
 Data downloaded by this script will be stored at `/data`.
+
+### data_extract
+
+Extracts all dowloaded data from `/data` folder.
+
+Data extracted by this script will be stored at `/data_extract`
 
 ### story_extract
 
