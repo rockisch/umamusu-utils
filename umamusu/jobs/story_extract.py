@@ -10,11 +10,13 @@ from UnityPy.enums import ClassIDType
 from collections import defaultdict
 
 from utils import get_master_conn, get_storage_folder, get_logger, get_girls_dict
+from utils.dumpers import JsonDumper
 
 logger = get_logger(__name__)
 
 LIMIT = 200
 SKIP_EXISTING = True
+USE_JSON = True
 
 DATA_ROOT = get_storage_folder('data')
 STORY_ROOT = get_storage_folder('story')
@@ -74,33 +76,57 @@ class StoryData:
     episodes: List[EpisodeData]
 
 
-def story_extract():
-    save_stories(fetch_main_story_data())
-    save_stories(fetch_event_story_data())
-    save_stories(fetch_character_story_data())
+def story_extract(dumper=JsonDumper):
+    for story in itertools.chain(
+        fetch_main_story_data(),
+        fetch_event_story_data(),
+        fetch_character_story_data()
+    ):
+        save_story(story, dumper)
 
 
-def save_stories(stories: List[StoryData]):
-    for story in stories:
-        save_story(story)
-
-
-def save_story(story: StoryData):
+def save_story(story: StoryData, dumper):
     name = story.id
     if story.kind == 'chara':
         name = get_girls_dict()[story.id]
 
-    path = Path(STORY_ROOT, story.kind, f'{name}.txt')
+    ext = 'json' if USE_JSON else 'txt'
+    path = Path(STORY_ROOT, story.kind, f'{name}.{ext}')
     if SKIP_EXISTING and path.exists():
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = format_story(story)
-    with path.open('w', encoding='utf8') as f:
-        f.write(data)
+    dumper.dump(path, story)
 
 
-def format_story(story: StoryData):
+def format_story_json(story: StoryData):
+    episodes_data = []
+    for episode in story.episodes:
+        segments_data = []
+        for segment in episode.segments:
+            lines_data = []
+            try:
+                lines = segment.get_lines()
+            except Exception as e:
+                logger.error(e, extra={'story': story})
+                lines = []
+
+            for line in lines:
+                if line.text:
+                    line_data = {'name': line.name, 'text': line.text}
+                    lines_data.append(line_data)
+
+            segment_data = {'segment': segment.id, 'kind': str(segment.kind), 'lines': lines_data}
+            segments_data.append(segment_data)
+
+        episode_data = {'episode': episode.id, 'segments': segments_data}
+        episodes_data.append(episode_data)
+
+    story_data = episodes_data
+    return json.dumps(story_data, ensure_ascii=False, indent=4)
+
+
+def format_story_txt(story: StoryData):
     episodes_data = []
     for episode in story.episodes:
         segments_data = []

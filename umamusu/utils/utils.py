@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-ROOT = Path(__file__, '../..')
+ROOT = Path(__file__, '../../..')
 LOG_ROOT = Path(ROOT, 'logs')
 STORAGE_ROOT = Path(ROOT, 'storage')
 
@@ -50,3 +50,11 @@ def get_meta_conn():
 
 def get_master_conn():
     return sqlite3.connect(Path(STORAGE_ROOT, 'master.mdb'))
+
+
+def chunk_iter(file, chunk_size=4096):
+    while True:
+        data = file.read(chunk_size)
+        if not data:
+            break
+        yield data

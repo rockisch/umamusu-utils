@@ -12,5 +12,6 @@
       "name": "meta",
       "database": "./storage/meta"
     }
-  ]
+  ],
+  "python.analysis.extraPaths": ["umamusu"]
 }
