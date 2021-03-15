@@ -9,8 +9,8 @@ from typing import List
 from UnityPy.enums import ClassIDType
 from collections import defaultdict
 
-from utils import get_master_conn, get_storage_folder, get_logger, get_girls_dict
-from utils.dumpers import JsonDumper
+from utils import get_master_conn, get_logger, get_girls_dict
+from utils.paths import DATA_ROOT
 
 logger = get_logger(__name__)
 
@@ -18,8 +18,6 @@ LIMIT = 200
 SKIP_EXISTING = True
 USE_JSON = True
 
-DATA_ROOT = get_storage_folder('data')
-STORY_ROOT = get_storage_folder('story')
 MAIN_STORY_TABLE = 'main_story_data'
 EVENT_STORY_TABLE = 'story_event_story_data'
 CHARACTER_STORY_TABLE = 'chara_story_data'
@@ -76,7 +74,7 @@ class StoryData:
     episodes: List[EpisodeData]
 
 
-def story_extract(dumper=JsonDumper):
+def story_extract(dumper):
     for story in itertools.chain(
         fetch_main_story_data(),
         fetch_event_story_data(),
@@ -91,7 +89,7 @@ def save_story(story: StoryData, dumper):
         name = get_girls_dict()[story.id]
 
     ext = 'json' if USE_JSON else 'txt'
-    path = Path(STORY_ROOT, story.kind, f'{name}.{ext}')
+    path = Path(DATA_ROOT, 'story', story.kind, f'{name}.{ext}')
     if SKIP_EXISTING and path.exists():
         return
 

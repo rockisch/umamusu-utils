@@ -5,23 +5,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from utils import STORAGE_ROOT, get_meta_conn, get_storage_folder, get_logger
+from utils import get_meta_conn, get_logger
+from utils.paths import STORAGE_ROOT, DATA_ROOT
+
 
 logger = get_logger(__name__)
 
-LIMIT = 200
-SKIP_EXISTING = True
-ASYNC_DOWNLOAD = False
 
-DATA_ROOT = get_storage_folder('data')
+LIMIT = 100
+SKIP_EXISTING = True
+ASYNC_DOWNLOAD = True
+
 HOSTNAME = 'https://prd-storage-umamusume.akamaized.net/dl/resources/'
-ASSETS_ENDPOINT = HOSTNAME + '/Android/assetbundles/{0:.2}/{0}'
+ASSETS_ENDPOINT = HOSTNAME + '/{os}/assetbundles/{0:.2}/{0}'
 GENERIC_ENDPOINT = HOSTNAME + '/Generic/{0:.2}/{0}'
 MANIFEST_ENDPOINT = HOSTNAME + '/Manifest/{0:.2}/{0}'
 BLOB_TABLE = 'a'
 BLOB_TABLE_PATH = 'n'
 BLOB_TABLE_HASH = 'h'
 BLOB_TABLE_KIND = 'm'
+META_OS = 'Android'
 
 
 @dataclass
@@ -38,6 +41,12 @@ def data_download():
     meta_conn = get_meta_conn()
     loop = asyncio.get_event_loop()
     total_blobs = meta_conn.execute(f'SELECT COUNT(*) FROM "{BLOB_TABLE}"').fetchone()[0]
+    android_meta = bool(int(meta_conn.execute(f"""SELECT EXISTS(SELECT 1 FROM "{BLOB_TABLE}" WHERE "{BLOB_TABLE_PATH}" = '//Android')""").fetchone()[0]))
+    if android_meta:
+        META_OS = 'Android'
+    else:
+        META_OS = 'Windows'
+
     offset = 0
     while offset != total_blobs:
         blob_rows = []
@@ -83,7 +92,7 @@ async def save_blob_row(session: aiohttp.ClientSession, blob_row: BlobRow):
         lz4_context = lz4.frame.create_decompression_context()
         blob_row.path = blob_row.path[:-4]
 
-    url = endpoint.format(blob_row.hash)
+    url = endpoint.format(blob_row.hash, os=META_OS)
     path = Path(DATA_ROOT, blob_row.path)
     if not force and path.exists():
         return

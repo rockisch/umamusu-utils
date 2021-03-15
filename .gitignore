@@ -6,6 +6,9 @@ storage/*
 logs/*
 !logs/.gitkeep
 
+# Secrets file (Shhhh)
+secret.json
+
 # Python cache
 *.pyc
 *.pyo

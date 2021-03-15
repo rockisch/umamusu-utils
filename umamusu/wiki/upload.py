@@ -1,131 +1,69 @@
-import json
-import logging
-import aiohttp
 from pathlib import Path
 
-from utils.utils import get_storage_folder, chunk_iter, get_logger
+from utils import get_logger
+from utils.wiki import translate_references
+from utils.paths import WIKI_UPDATE_ROOT, WIKI_CREATE_FILE
+from wiki import api
+from wiki.pages import parse_page_source, encode_page_source
+from wiki.templates import Templates
 
 
-logger = get_logger(__file__)
+logger = get_logger(__name__)
 
 
-ENDPOINT = ''
-USERNAME = ''
-PASSWORD = ''
-try:
-    with open('secret.json') as f:
-        secret = json.load(f)
-    ENDPOINT = secret['endpoint']
-    USERNAME = secret['username']
-    PASSWORD = secret['password']
-except:
-    pass
-
-API_ENDPOINT = ENDPOINT + '/api.php'
-REST_ENDPOINT = ENDPOINT + '/rest.php'
-
-PAGES_ROOT = get_storage_folder('wiki/pages')
-ASSETS_ROOT = get_storage_folder('wiki/assets')
+def upload():
+    api_session = api.APISession()
+    with WIKI_CREATE_FILE.open('w', encoding='utf8') as wiki_create_file:
+        for kind_folder in WIKI_UPDATE_ROOT.iterdir():
+            kind = Templates(kind_folder.name)
+            for page_folder in kind_folder.iterdir():
+                page_id = page_folder.name
+                page_data = api_session.get_page(kind, page_id)
+                if page_data:
+                    # If the page already exists, we'll do some translation and upload it
+                    upload_page_folder(api_session, kind, page_data, page_folder)
+                else:
+                    # Otherwise, dump it into a file
+                    page_file, _ = get_page_folder_files(page_folder)
+                    wiki_create_file.write(f'{kind.value}|{page_id}|{page_file.name}\n')
 
 
-async def session_auth(session: aiohttp.ClientSession):
-    # Get Token
-    async with session.get(API_ENDPOINT, params={
-        'action': 'query',
-        'meta': 'tokens',
-        'type': 'login',
-        'format': 'json',
-    }) as resp:
-        data = await resp.json()
-
-    login_token = data['query']['tokens']['logintoken']
-
-    # Session Auth
-    async with session.post(API_ENDPOINT, data={
-        'action': 'login',
-        'lgname': USERNAME,
-        'lgpassword': PASSWORD,
-        'lgtoken': login_token,
-        'format': 'json',
-    }) as resp:
-        data = await resp.json()
-
-    if data['login']['result'] == 'Failed':
-        raise Exception(data['login']['reason'])
-
-
-async def get_csrf_token(session: aiohttp.ClientSession):
-    async with session.get(API_ENDPOINT, params={
-        'action': 'query',
-        'meta': 'tokens',
-        'format': 'json',
-    }) as resp:
-        data = await resp.json()
-
-    csrf_token = data['query']['tokens']['csrftoken']
-    return csrf_token
-
-
-async def upload_files():
-    async with aiohttp.ClientSession() as session:
-        await session_auth(session)
-        for child in assets_iter(ASSETS_ROOT):
-            print(child)
-            await upload_asset_file(child, session)
-            break
-
-
-def assets_iter(folder):
-    for child in folder.iterdir():
-        if child.is_dir():
-            logger.warning('directory in assets, something is wrong')
+def get_page_folder_files(page_folder: Path):
+    page_file = None
+    page_assets = None
+    # Each page folder has a page file with the jpname and a folder with assets
+    for file in page_folder.iterdir():
+        if file.name == 'assets':
+            page_assets = file
         else:
-            yield child
+            page_file = file
+
+    return page_file, page_assets
 
 
-async def upload_asset_file(file: Path, session: aiohttp.ClientSession):
-    csrf_token = await get_csrf_token(session)
-    params = {
-        'action': 'upload',
-        'filename': file.name,
-        'token': csrf_token,
-        'format': 'json',
-    }
-    filesize = file.stat().st_size
-    # For bigger files, we can do a chunked upload
-    if filesize < 1_024_000:
-        params['file'] = file.open('rb')
-        async with session.post(API_ENDPOINT, data=params) as resp:
-            data = await resp.json()
+def upload_page_folder(api_session: api.APISession, kind: Templates, page_data: dict, page_folder: Path):
+    page_file, page_assets = get_page_folder_files(page_folder)
 
-        print('UPLOAD', data)
-    else:
-        chunks = chunk_iter(file)
-        chunk = next(chunks)
-        chunk_data = {'chunk': ('0' + file.suffix, chunk, 'multipart/form-data')}
-        async with session.post(API_ENDPOINT, params={
-            **params,
-            'stash': 1,
-            'filesize': filesize,
-            'offset': 0,
-        }, data=chunk_data) as resp:
-            data = await resp.json()
+    remote_source = page_data['source']
+    remote_source_data, before, after = parse_page_source(remote_source, kind)
+    references = {'NAME': remote_source_data.get(kind.name_field)}
 
-        for i, chunk in enumerate(chunks):
-            filekey = data['upload']['filekey']
-            offset = data['upload']['offset']
-            chunk_data = {'chunk': (i + file.suffix, chunk, 'multipart/form-data')}
-            async with session.post(API_ENDPOINT, params={
-                **params,
-                'stash': 1,
-                'filesize': filesize,
-                'filekey': filekey,
-                'offset': offset,
-            }, data=chunk_data) as resp:
-                data = await resp.json()
+    with page_file.open(encoding='utf8') as f:
+        local_source = f.read()
 
-        async with session.post(API_ENDPOINT, params={
-            **params,
-            'filekey': filekey,
-        }) as resp:
-            data = await resp.json()
+    local_source = translate_references(local_source, references)
+    local_source_data, _, _ = parse_page_source(local_source, kind)
+
+    new_source_data = remote_source_data.copy()
+    for key, value in local_source_data.items():
+        if value and not (key in kind.keep_original and new_source_data.get(key)):
+            new_source_data[key] = value
+
+    if new_source_data != remote_source_data:
+        new_source = encode_page_source(new_source_data, kind, before, after)
+        api_session.update_page(page_data, new_source)
+
+    page_assets = Path(page_folder, 'assets')
+    for asset in page_assets.iterdir():
+        asset_name = translate_references(asset.name, references)
+        api_session.upload_asset(asset, asset_name)

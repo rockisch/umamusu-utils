@@ -1,13 +1,8 @@
-import sqlite3
 import logging
-import enum
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List
-from jobs.story_extract import DATA_ROOT
 
-from utils import STORAGE_ROOT, get_master_conn
-from utils.dumpers import JsonDumper
+from utils import get_master_conn, unity
+from utils.dumpers import WikiDumper
+from wiki.templates import Templates
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +18,7 @@ CONSUMABLES_ITEMS = {
     34,  # Stopwatch
     150, # PvP items
 }
-ENCHANCEMENT_ITEMS = {
+ENHANCEMENT_ITEMS = {
     11,  # Most enchancements
     30,  # Support Lvl up coin
     93,  # Rainbow Horseshoe
@@ -54,8 +49,8 @@ NON_ITEMS = {
 def get_category_name(category_id):
     if category_id in CONSUMABLES_ITEMS:
         return 'Consumable Item'
-    if category_id in ENCHANCEMENT_ITEMS:
-        return 'Enchancement Item'
+    if category_id in ENHANCEMENT_ITEMS:
+        return 'Enhancement Item'
     if category_id in TICKET_ITEMS:
         return 'Ticket'
     if category_id in OTHER_ITEMS:
@@ -64,20 +59,8 @@ def get_category_name(category_id):
         return ''
 
 
-
-@dataclass
-class ItemRow:
-    id: str
-    icon: str
-    jpname: str
-    description: str
-    category: int
-    category_string: str
-    uses: int
-    obtain: str
-
-
-def items_extract(dumper=JsonDumper):
+def items_extract():
+    dumper = WikiDumper()
     master_conn = get_master_conn()
     query = """
         SELECT "id", "item_category", "limit_num", group_concat("text", '|')
@@ -95,19 +78,27 @@ def items_extract(dumper=JsonDumper):
        GROUP BY "id"
        ORDER BY "id"
     """
-    items = []
-    for item_id, category_id, limit_num, texts in master_conn.execute(query):
+    for item_id, category_id, limit_num, texts_agg in master_conn.execute(query):
         item_id = str(item_id).zfill(5)
-        texts = texts.split('|', 1)
+        jpname, description = texts_agg.split('|', 1)
 
         category_name = get_category_name(category_id)
         if category_name is None:
-            logger.warning('unkown item category id', category_id)
+            logger.warning('unknown item category id', category_id)
             category_name = ''
 
-        assets = dumper.get_unity_assets(f'item/item_icon_{item_id}')
-        icon_path = assets[0].save(f'Item_Icon_{item_id}.png')
-        dumper.dump(f'item/item_{item_id}', ItemRow(item_id, icon_path, texts[0], texts[1], category_id, category_name, limit_num, ''))
+        icon = unity.get_unity_assets(f'item/item_icon_{item_id}')[0]
+        icon.name = f'{icon.name[0].upper()}{icon.name[1:]}.png'
+        item = {
+            'id': int(item_id),
+            'name': '$NAME',
+            'jpname': jpname,
+            'jpdescription': description,
+            'icon': icon,
+            'category': category_id,
+            'category_string': category_name,
+        }
+        dumper.dump_unnamed_page(Templates.ITEM, item_id, jpname, item, assets=[icon])
 
 if __name__ == '__main__':
     items_extract()

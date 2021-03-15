@@ -1,12 +1,22 @@
+import json
 import logging
 import sqlite3
+from dataclasses import dataclass
 
 from pathlib import Path
+from typing import Callable
+
+from utils.paths import ROOT, LOG_ROOT, STORAGE_ROOT
 
 
-ROOT = Path(__file__, '../../..')
-LOG_ROOT = Path(ROOT, 'logs')
-STORAGE_ROOT = Path(ROOT, 'storage')
+META_DB_PATH = Path(STORAGE_ROOT, 'meta')
+MASTER_DB_PATH = Path(STORAGE_ROOT, 'master.mdb')
+
+
+@dataclass
+class AssetSaver:
+    name: str
+    save: Callable
 
 
 _girls = None
@@ -38,18 +48,17 @@ def get_logger(name: str):
     return logger
 
 
-def get_storage_folder(folder: str):
-    path = Path(STORAGE_ROOT, folder)
-    path.mkdir(exist_ok=True)
-    return path
-
-
 def get_meta_conn():
-    return sqlite3.connect(Path(STORAGE_ROOT, 'meta'))
+    return sqlite3.connect(META_DB_PATH)
 
 
 def get_master_conn():
-    return sqlite3.connect(Path(STORAGE_ROOT, 'master.mdb'))
+    return sqlite3.connect(MASTER_DB_PATH)
+
+
+def get_secret_file():
+    with Path(ROOT, 'secret.json').open(encoding='utf8') as s:
+        return json.load(s)
 
 
 def chunk_iter(file, chunk_size=4096):
