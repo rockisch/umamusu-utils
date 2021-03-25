@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 
 import requests
 
@@ -76,7 +77,7 @@ class APISession:
             'action': 'cargoquery',
             'limit': 1,
             'tables': kind.cargo_table,
-            'fields': '_pageName=Page',
+            'fields': 'id,_pageName=name',
             'where': f'item.id = {id}'
         }
         resp = self.session.get(API_ENDPOINT, params=params)
@@ -84,13 +85,35 @@ class APISession:
         if 'cargoquery' not in data:
             return
 
-        page_title = data['cargoquery'][0]['title']['Page']
+        page_title = data['cargoquery'][0]['title']['name']
         resp = self.session.get(REST_ENDPOINT + f'/page/{page_title}')
         data = resp.json()
         if not 'id' in data:
             return
 
         return data
+
+    def bulk_get_pages(self, kind: Templates, ids: List):
+        ids_str = ','.join([str(i) for i in ids[1:]])
+        print(ids_str)
+        params = {
+            'format': 'json',
+            'action': 'cargoquery',
+            'tables': kind.cargo_table,
+            'fields': 'id,_pageName=name',
+            'where': f'item.id IN ({ids_str})'
+        }
+        resp = self.session.get(API_ENDPOINT, params=params)
+        data = resp.json()
+        if 'cargoquery' not in data:
+            return {}
+
+        pages = {}
+        print(data)
+        for page in data['cargoquery']:
+            page_data = page['title']
+            pages[page_data['id']] = page_data['name']
+
 
     def update_page(self, target_page: dict, source: str):
         # 'target_page' should be result of 'get_page'

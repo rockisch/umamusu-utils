@@ -1,8 +1,8 @@
 import logging
 
 from utils import get_master_conn, unity
-from utils.dumpers import WikiDumper
 from wiki.templates import Templates
+from wiki.pages import dump_page_file
 
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,7 @@ def get_category_name(category_id):
         return ''
 
 
-def items_extract():
-    dumper = WikiDumper()
+def extract_items():
     master_conn = get_master_conn()
     query = """
         SELECT "id", "item_category", "limit_num", group_concat("text", '|')
@@ -98,7 +97,8 @@ def items_extract():
             'category': category_id,
             'category_string': category_name,
         }
-        dumper.dump_unnamed_page(Templates.ITEM, item_id, jpname, item, assets=[icon])
+        dump_page_file(item, jpname, Templates.ITEM, item_id, assets=[icon])
+
 
 if __name__ == '__main__':
-    items_extract()
+    extract_items()

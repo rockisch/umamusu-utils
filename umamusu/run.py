@@ -1,6 +1,6 @@
 import argparse
 
-from jobs import data_download, translate_meta
+from jobs import data_download
 from wiki import upload, extract_data
 
 

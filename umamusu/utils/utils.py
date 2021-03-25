@@ -2,9 +2,10 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
+from PIL import Image
 
 from utils.paths import ROOT, LOG_ROOT, STORAGE_ROOT
 
@@ -16,7 +17,31 @@ MASTER_DB_PATH = Path(STORAGE_ROOT, 'master.mdb')
 @dataclass
 class AssetSaver:
     name: str
+    image: Image
     save: Callable
+
+
+def merge_dicts(d1, d2, skip=[]):
+    d = d1.copy()
+    for key, value in d2.items():
+        if value and not (key in skip and d.get(key)):
+            d[key] = value
+
+    return d
+
+
+def data_to_dict(data: Any) -> dict:
+    if isinstance(data, list):
+        data = {'data': data}
+    elif not isinstance(data, dict):
+        data = vars(data)
+
+    for key, value in data.items():
+        if hasattr(value, 'name'):
+            value = f'{value.name}'
+            data[key] = value
+
+    return data
 
 
 _girls = None

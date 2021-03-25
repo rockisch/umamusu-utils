@@ -16,7 +16,7 @@ LIMIT = 100
 SKIP_EXISTING = True
 ASYNC_DOWNLOAD = True
 
-HOSTNAME = 'https://prd-storage-umamusume.akamaized.net/dl/resources/'
+HOSTNAME = 'https://prd-storage-umamusume.akamaized.net/dl/resources'
 ASSETS_ENDPOINT = HOSTNAME + '/{os}/assetbundles/{0:.2}/{0}'
 GENERIC_ENDPOINT = HOSTNAME + '/Generic/{0:.2}/{0}'
 MANIFEST_ENDPOINT = HOSTNAME + '/Manifest/{0:.2}/{0}'
@@ -42,6 +42,7 @@ def data_download():
     loop = asyncio.get_event_loop()
     total_blobs = meta_conn.execute(f'SELECT COUNT(*) FROM "{BLOB_TABLE}"').fetchone()[0]
     android_meta = bool(int(meta_conn.execute(f"""SELECT EXISTS(SELECT 1 FROM "{BLOB_TABLE}" WHERE "{BLOB_TABLE_PATH}" = '//Android')""").fetchone()[0]))
+    global META_OS
     if android_meta:
         META_OS = 'Android'
     else:
@@ -63,7 +64,9 @@ def data_download():
 
     master_path = Path(DATA_ROOT, 'master.mdb')
     if master_path.exists():
-        master_path.rename(Path(STORAGE_ROOT, 'master.mdb'))
+        master_storage_path = Path(STORAGE_ROOT, 'master.mdb')
+        master_storage_path.unlink()
+        master_path.rename(master_storage_path)
 
 
 async def save_blob_rows(blob_rows: List[BlobRow]):

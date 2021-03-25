@@ -16,11 +16,12 @@ def get_unity_assets(path: str):
     for obj in env.objects:
         if obj.type in ['Texture2D', 'Sprite']:
             data = obj.read()
+            asset = AssetSaver(data.name, data.image, None)
             def save(dest):
                 if not dest.name.endswith('.png'):
                     dest = dest.with_name(f'{dest.name}.png')
-                data.image.save(dest)
-            asset = AssetSaver(data.name, save)
+                asset.image.save(dest)
+            asset.save = save
             assets.append(asset)
 
     return assets
