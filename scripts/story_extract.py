@@ -27,7 +27,6 @@ MAIN_STORY_SEG_COLUMNS = ', '.join([
     for i in range(1, MAIN_STORY_SEG_MAX + 1) for column in [f'"story_type_{i}"', f'"story_id_{i}"']
 ])
 
-
 class SegmentKind(enum.Enum):
     TEXT = 1
     LIVE = 2
@@ -44,12 +43,10 @@ class SegmentKind(enum.Enum):
         if self is self.RACE:
             return 'race'
 
-
 @dataclass
 class LineData:
     name: str
     text: str
-
 
 @dataclass
 class SegmentData:
@@ -60,12 +57,10 @@ class SegmentData:
     def get_lines(self) -> List[LineData]:
         return fetch_segment_lines(self)
 
-
 @dataclass
 class EpisodeData:
     id: int
     segments: List[SegmentData]
-
 
 @dataclass
 class StoryData:
@@ -73,17 +68,14 @@ class StoryData:
     kind: str
     episodes: List[EpisodeData]
 
-
 def story_extract():
     save_stories(fetch_main_story_data())
     save_stories(fetch_event_story_data())
     save_stories(fetch_character_story_data())
 
-
 def save_stories(stories: List[StoryData]):
     for story in stories:
         save_story(story)
-
 
 def save_story(story: StoryData):
     name = story.id
@@ -98,7 +90,6 @@ def save_story(story: StoryData):
     data = format_story(story)
     with path.open('w', encoding='utf8') as f:
         f.write(data)
-
 
 def format_story(story: StoryData):
     episodes_data = []
@@ -125,7 +116,6 @@ def format_story(story: StoryData):
 
     story_data = '\n'.join(episodes_data)
     return story_data
-
 
 def fetch_segment_lines(segment: SegmentData):
     lines = []
@@ -162,43 +152,58 @@ def fetch_segment_lines(segment: SegmentData):
 
     return lines
 
-
 def fetch_main_story_data():
-    with get_master_conn() as master_conn:
+    master_conn = get_master_conn()
+    try:
         part_episodes = defaultdict(list)
-        for part_id, episode_index, *segment_data in master_conn.execute(f'SELECT "part_id", "episode_index", {MAIN_STORY_SEG_COLUMNS} FROM "{MAIN_STORY_TABLE}"'):
+        for row in master_conn.execute(f'SELECT "part_id", "episode_index", {MAIN_STORY_SEG_COLUMNS} FROM "{MAIN_STORY_TABLE}"'):
+            part_id = row['part_id']
+            episode_index = row['episode_index']
+            segment_data = [row[f'story_type_{i}'] for i in range(1, MAIN_STORY_SEG_MAX + 1)] + \
+                [row[f'story_id_{i}'] for i in range(1, MAIN_STORY_SEG_MAX + 1)]
+
             segments = [
                 SegmentData(story_id, i, SegmentKind(story_type))
                 for i, (story_type, story_id) in enumerate(zip(segment_data[::2], segment_data[1::2]), start=1) if story_type != 0
             ]
-
             part_episodes[part_id].append(EpisodeData(episode_index, segments))
 
         main_story_data = [StoryData(part_id, 'main', episodes) for part_id, episodes in part_episodes.items()]
         return main_story_data
-
+    finally:
+        master_conn.close()
 
 def fetch_event_story_data():
-    with get_master_conn() as master_conn:
+    master_conn = get_master_conn()
+    try:
         story_event_episodes = defaultdict(list)
-        for event_id, episode_index, story_id  in master_conn.execute(f'SELECT "story_event_id", "episode_index_id", "story_id_1" FROM "{EVENT_STORY_TABLE}"'):
+        for row in master_conn.execute(f'SELECT "story_event_id", "episode_index_id", "story_id_1" FROM "{EVENT_STORY_TABLE}"'):
+            event_id = row['story_event_id']
+            episode_index = row['episode_index_id']
+            story_id = row['story_id_1']
             segments = [SegmentData(story_id, 1, SegmentKind.TEXT)]
             story_event_episodes[event_id].append(EpisodeData(episode_index, segments))
 
         event_story_data = [StoryData(event_id, 'event', episodes) for event_id, episodes in story_event_episodes.items()]
         return event_story_data
-
+    finally:
+        master_conn.close()
 
 def fetch_character_story_data():
-    with get_master_conn() as master_conn:
+    master_conn = get_master_conn()
+    try:
         chara_episodes = defaultdict(list)
-        for chara_id, episode_index, story_id  in master_conn.execute(f'SELECT "chara_id", "episode_index", "story_id" FROM "{CHARACTER_STORY_TABLE}"'):
+        for row in master_conn.execute(f'SELECT "chara_id", "episode_index", "story_id" FROM "{CHARACTER_STORY_TABLE}"'):
+            chara_id = row['chara_id']
+            episode_index = row['episode_index']
+            story_id = row['story_id']
             segments = [SegmentData(story_id, 1, SegmentKind.TEXT)]
             chara_episodes[chara_id].append(EpisodeData(episode_index, segments))
 
         character_story_data = [StoryData(chara_id, 'chara', episodes) for chara_id, episodes in chara_episodes.items()]
         return character_story_data
-
+    finally:
+        master_conn.close()
 
 if __name__ == '__main__':
     story_extract()

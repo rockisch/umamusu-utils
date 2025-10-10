@@ -1,3 +1,4 @@
 aiohttp
 UnityPy
 lz4
+apsw-sqlite3mc
