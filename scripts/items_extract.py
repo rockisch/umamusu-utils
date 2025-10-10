@@ -40,7 +40,10 @@ def items_extract():
             category_id = int(row['item_category'])
             texts = row['texts'].split('|', 1)
 
-            items.append(ItemRow(item_id, category_id, texts[0], texts[1]))
+            texts = row['texts'].split('|', 1)
+            name = texts[0]
+            description = texts[1] if len(texts) > 1 else ""
+            items.append(ItemRow(item_id, category_id, name, description))
     finally:
         master_conn.close()
 
