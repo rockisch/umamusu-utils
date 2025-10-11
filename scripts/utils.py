@@ -74,13 +74,19 @@ def get_storage_folder(folder: str):
     return path
 
 def get_meta_conn():
-    conn = apsw.Connection(str(Path(STORAGE_ROOT, 'meta')))
-    conn.row_trace = dict_factory
+    # optional: run decrypt_meta.py for this
+    decrypted_meta = Path(STORAGE_ROOT, "meta_decrypted")
 
-    final_key = _derive_decryption_key(DB_KEY, DB_BASE_KEY)
-
-    conn.pragma("cipher", "chacha20")
-    conn.pragma("hexkey", final_key.hex())
+    if decrypted_meta.exists():
+        conn = apsw.Connection(str(decrypted_meta))
+        conn.row_trace = dict_factory
+        print("Decrypted meta found, using it instead...")
+    else:
+        conn = apsw.Connection(str(Path(STORAGE_ROOT, 'meta')))
+        conn.row_trace = dict_factory
+        final_key = _derive_decryption_key(DB_KEY, DB_BASE_KEY)
+        conn.pragma("cipher", "chacha20")
+        conn.pragma("hexkey", final_key.hex())
     return conn
 
 def get_master_conn():
