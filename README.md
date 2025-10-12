@@ -21,6 +21,9 @@ This only downloads new files, you can set `SKIP_EXISTING` to false inside the s
 
 **IMPORTANT** If doing a full download, this will suck your machine's network dry.
 Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
+
+Uses the decrypted meta file if `decrypt_meta.py` was used before this script.
+
 The output files are located at `storage/data`.
 
 ### `items_extract.py`
@@ -31,8 +34,37 @@ Extracts stuff related to items. Output file can be found at `storage/items.txt`
 
 Extracts the strings related to the in-game stories.
 This only extracts new files, you can set `SKIP_EXISTING` to `False` inside the script to force a full extraction.
+
+Uses the decrypted assets if `decrypt_assets.py` was used before this script.
+
 The output files are located at `storage/story`.
 
 ### `decrypt_meta.py`
 
 Creates a one-to-one copy of the `meta` file with no encryption. Output file can be found at `storage/meta_decrypted`.
+
+### `decrypt_assets.py`
+
+Creates a one-to-one copy of the asset files from the `storage/data` folder with no encryption.
+
+Can be customized which folders are included or excluded and whether to skip existing files with these lines of code inside the script:
+
+```
+SKIP_EXISTING = True
+
+# If this is NOT empty, ONLY assets within these folders will be decrypted.
+# If this IS empty, ALL assets will be processed (with exclusions).
+# Example:
+# INCLUDED_FOLDERS = set()
+# INCLUDED_FOLDERS = {"sound/v/", "story/data/"}
+INCLUDED_FOLDERS = {"story/data/"}
+
+# Any asset from these folders will be explicitly SKIPPED.
+# This is useful for ignoring entire categories of files.
+# Example:
+# EXCLUDED_FOLDERS = {"font/"}
+# EXCLUDED_FOLDERS = {"font/", "movie/"}
+EXCLUDED_FOLDERS = set()
+```
+
+The output files are located at `storage/data_decrypted`.

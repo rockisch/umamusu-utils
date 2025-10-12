@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 SKIP_EXISTING = True
 
 DATA_ROOT = get_storage_folder('data')
+DECRYPTED_DATA_ROOT = get_storage_folder("data_decrypted")
 STORY_ROOT = get_storage_folder('story')
 MAIN_STORY_TABLE = 'main_story_data'
 EVENT_STORY_TABLE = 'story_event_story_data'
@@ -123,47 +124,52 @@ def fetch_segment_lines(segment: SegmentData, meta_conn):
     lines = []
     if segment.kind is not SegmentKind.TEXT:
         return lines
-
     story_id_str = str(segment.id).zfill(9)
     storyline_basename = f'storytimeline_{story_id_str}'
-
     db_asset_name = f"story/data/{story_id_str[:2]}/{story_id_str[2:6]}/{storyline_basename}"
-    filesystem_path = Path(DATA_ROOT, db_asset_name)
 
-    if not filesystem_path.exists():
-        logger.warning(f"Source file not found, skipping: {filesystem_path}")
-        return lines
+    source_path = Path(DATA_ROOT, db_asset_name)
+    decrypted_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
 
     asset_key_row = next(meta_conn.execute('SELECT "e" FROM "a" WHERE "n" = ?', (db_asset_name,)), None)
     if not asset_key_row:
-        logger.warning(f"Asset '{db_asset_name}' not found in meta database. Skipping.")
+        logger.warning(f"Asset '{db_asset_name}' not found in meta database. Skipping...")
         return lines
 
-    decryption_key = _derive_asset_key(asset_key_row['e'])
-
-    temp_file = None
+    is_encrypted = asset_key_row['e'] != 0
+    temp_file_path = None
+    env = None
     try:
-        with open(filesystem_path, 'rb') as f:
-            data = bytearray(f.read())
+        if is_encrypted and decrypted_path.exists():
+            logger.info(f"Loading pre-decrypted asset: {decrypted_path}...")
+            env = UnityPy.load(str(decrypted_path))
+        else:
+            if not source_path.exists():
+                logger.info(f"Source file not found, skipping: {source_path}...")
+                return lines
 
-        if decryption_key and len(data) > 256:
-            key_len = len(decryption_key)
-            for i in range(256, len(data)):
-                data[i] ^= decryption_key[i % key_len]
+            with open(source_path, 'rb') as f:
+                data = bytearray(f.read())
 
-        ram_disk_dir = "/dev/shm" if sys.platform == "linux" else None
-        temp_file = tempfile.NamedTemporaryFile(delete=False, dir=ram_disk_dir)
-        temp_file.write(data)
-        temp_file.close()
+            if is_encrypted:
+                decryption_key = _derive_asset_key(asset_key_row['e'])
+                if decryption_key and len(data) > 256:
+                    key_len = len(decryption_key)
+                    for i in range(256, len(data)):
+                        data[i] ^= decryption_key[i % key_len]
 
-        env = UnityPy.load(temp_file.name)
-        logger.info(f"Fetching segment line for {db_asset_name}...")
+            ram_disk_dir = "/dev/shm" if sys.platform == "linux" else None
+            with tempfile.NamedTemporaryFile(delete=False, dir=ram_disk_dir) as temp_f:
+                temp_f.write(data)
+                temp_file_path = temp_f.name
+            env = UnityPy.load(temp_file_path)
+
     except Exception as e:
-        logger.error(f"Failed to load or process asset {filesystem_path}: {e}")
+        logger.error(f"Failed to load or process asset from {db_asset_name}: {e}")
         return lines
     finally:
-        if temp_file:
-            os.unlink(temp_file.name)
+        if temp_file_path:
+            os.unlink(temp_file_path)
 
     if not env.assets:
         return lines
@@ -174,7 +180,6 @@ def fetch_segment_lines(segment: SegmentData, meta_conn):
         if obj.type.name != "MonoBehaviour":
             continue
         tree = obj.read_typetree()
-
         if tree.get("m_Name") == storyline_basename:
             timeline_tree = tree
         else:
@@ -185,7 +190,7 @@ def fetch_segment_lines(segment: SegmentData, meta_conn):
             obj.read_typetree().get("m_Name", "Unnamed")
             for obj in env.objects if obj.type.name == "MonoBehaviour"
         ]
-        logger.warning(f"Could not find timeline object named '{storyline_basename}'. Found these instead: {found_names}. Skipping.")
+        logger.warning(f"Could not find timeline object named '{storyline_basename}'. Found these instead: {found_names}. Skipping...")
         return lines
 
     for block in timeline_tree['BlockList']:
@@ -217,7 +222,7 @@ def fetch_main_story_data():
                     segments.append(SegmentData(story_id, i, kind))
                     logger.info(f"Fetching main story... Part ID: {part_id} Episode: {episode_index}")
                 except ValueError:
-                    logger.warning(f"Unknown SegmentKind '{story_type}' found in part_id {part_id}, episode {episode_index}. Skipping.")
+                    logger.warning(f"Unknown SegmentKind '{story_type}' found in part_id {part_id}, episode {episode_index}. Skipping...")
                     continue
 
             part_episodes[part_id].append(EpisodeData(episode_index, segments))
