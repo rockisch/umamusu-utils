@@ -68,3 +68,12 @@ EXCLUDED_FOLDERS = set()
 ```
 
 The output files are located at `storage/data_decrypted`.
+
+### `dump_meta.py`
+
+Dumps the contents of the meta file into a JSON file.
+
+**WARNING** The output file might be over 50MB, do not open the dump file with a normal text editor on a phone or PC.
+It's recommended to view the file with something like `neovim` or `vim` instead.
+
+Output file can be found at `storage/meta_dump.json`.
