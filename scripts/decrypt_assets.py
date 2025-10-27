@@ -6,7 +6,13 @@ from utils import get_meta_conn, get_storage_folder, get_logger, _derive_asset_k
 
 logger = get_logger(__name__)
 SKIP_EXISTING = True
-DATA_ROOT = get_storage_folder("data")
+HPATHS = False
+
+if HPATHS:
+    DATA_ROOT = get_storage_folder("dat")
+else:
+    DATA_ROOT = get_storage_folder("data")
+
 DECRYPTED_DATA_ROOT = get_storage_folder("data_decrypted")
 BLOB_TABLE = "a"
 
@@ -29,13 +35,14 @@ def decrypt_assets():
     meta_conn = None
     try:
         meta_conn = get_meta_conn()
-        query = f'SELECT "n", "e" FROM "{BLOB_TABLE}"'
+        query = f'SELECT "n", "h", "e" FROM "{BLOB_TABLE}"'
         all_assets = list(meta_conn.execute(query))
         total_assets = len(all_assets)
         logger.info(f"Found {total_assets} assets from meta.")
 
         for i, row in enumerate(all_assets):
             db_asset_name = row["n"]
+            asset_hash = row["h"]
             asset_key = row["e"]
 
             if any(db_asset_name.startswith(folder) for folder in EXCLUDED_FOLDERS):
@@ -44,7 +51,10 @@ def decrypt_assets():
             if INCLUDED_FOLDERS and not any(db_asset_name.startswith(folder) for folder in INCLUDED_FOLDERS):
                 continue
 
-            source_path = Path(DATA_ROOT, db_asset_name)
+            if HPATHS:
+                source_path = Path(DATA_ROOT, asset_hash[:2].upper(), asset_hash)
+            else:
+                source_path = Path(DATA_ROOT, db_asset_name)
             dest_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
 
             if not source_path.exists():

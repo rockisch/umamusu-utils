@@ -19,6 +19,8 @@ Downloads **ALL** game assets according to your `meta` file.
 If the game is updated, all you have to do is update the `meta` file and re-run this script.
 This only downloads new files, you can set `SKIP_EXISTING` to false inside the script to force a full re-download.
 
+Set `HPATHS` inside of the script to `True` if you want the downloaded folder structure to be the same as the game's `dat` folder structure.
+
 **IMPORTANT** If doing a full download, this will suck your machine's network dry.
 Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
 
@@ -37,6 +39,8 @@ This only extracts new files, you can set `SKIP_EXISTING` to `False` inside the 
 
 Uses the decrypted assets if `decrypt_assets.py` was used before this script.
 
+Set `HPATHS` inside of the script to `True` if you also set `HPATHS` to `True` in `data_download.py`.
+
 The output files are located at `storage/story`.
 
 ### `decrypt_meta.py`
@@ -46,6 +50,8 @@ Creates a one-to-one copy of the `meta` file with no encryption. Output file can
 ### `decrypt_assets.py`
 
 Creates a one-to-one copy of the asset files from the `storage/data` folder with no encryption.
+
+Set `HPATHS` inside of the script to `True` if you also set `HPATHS` to `True` in `data_download.py`.
 
 Can be customized which folders are included or excluded and whether to skip existing files with these lines of code inside the script:
 

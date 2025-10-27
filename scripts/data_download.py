@@ -12,8 +12,13 @@ logger = get_logger(__name__)
 LIMIT = 200
 SKIP_EXISTING = True
 ASYNC_DOWNLOAD = False
+HPATHS = False
 
-DATA_ROOT = get_storage_folder('data')
+if HPATHS:
+    DATA_ROOT = get_storage_folder('dat')
+else:
+    DATA_ROOT = get_storage_folder('data')
+
 HOSTNAME = 'https://prd-storage-game-umamusume.akamaized.net/dl/resources/'
 ASSETS_ENDPOINT = HOSTNAME + '/Android/assetbundles/{0:.2}/{0}'
 GENERIC_ENDPOINT = HOSTNAME + '/Generic/{0:.2}/{0}'
@@ -79,7 +84,10 @@ async def save_blob_row(session: aiohttp.ClientSession, blob_row: BlobRow):
         blob_row.path = blob_row.path[:-4]
 
     url = endpoint.format(blob_row.hash)
-    path = Path(DATA_ROOT, blob_row.path)
+    if HPATHS:
+        path = Path(DATA_ROOT, blob_row.hash[:2].upper(), blob_row.hash)
+    else:
+        path = Path(DATA_ROOT, blob_row.path)
     if not force and path.exists():
         return
 

@@ -17,10 +17,14 @@ from utils import get_meta_conn, get_master_conn, get_storage_folder, get_logger
 
 logger = get_logger(__name__)
 
-# LIMIT = 200
 SKIP_EXISTING = True
+HPATHS = False
 
-DATA_ROOT = get_storage_folder('data')
+if HPATHS:
+    DATA_ROOT = get_storage_folder('dat')
+else:
+    DATA_ROOT = get_storage_folder('data')
+
 DECRYPTED_DATA_ROOT = get_storage_folder("data_decrypted")
 STORY_ROOT = get_storage_folder('story')
 MAIN_STORY_TABLE = 'main_story_data'
@@ -128,15 +132,19 @@ def fetch_segment_lines(segment: SegmentData, meta_conn):
     storyline_basename = f'storytimeline_{story_id_str}'
     db_asset_name = f"story/data/{story_id_str[:2]}/{story_id_str[2:6]}/{storyline_basename}"
 
-    source_path = Path(DATA_ROOT, db_asset_name)
-    decrypted_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
-
-    asset_key_row = next(meta_conn.execute('SELECT "e" FROM "a" WHERE "n" = ?', (db_asset_name,)), None)
+    asset_key_row = next(meta_conn.execute('SELECT "e", "h" FROM "a" WHERE "n" = ?', (db_asset_name,)), None)
     if not asset_key_row:
         logger.warning(f"Asset '{db_asset_name}' not found in meta database. Skipping...")
         return lines
-
+    
+    asset_hash = asset_key_row['h']
     is_encrypted = asset_key_row['e'] != 0
+    
+    if HPATHS:
+        source_path = Path(DATA_ROOT, asset_hash[:2].upper(), asset_hash)
+    else:
+        source_path = Path(DATA_ROOT, db_asset_name)
+    decrypted_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
     temp_file_path = None
     env = None
     try:
