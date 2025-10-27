@@ -53,9 +53,10 @@ def decrypt_assets():
 
             if HPATHS:
                 source_path = Path(DATA_ROOT, asset_hash[:2].upper(), asset_hash)
+                dest_path = Path(DECRYPTED_DATA_ROOT, asset_hash[:2].upper(), asset_hash)
             else:
                 source_path = Path(DATA_ROOT, db_asset_name)
-            dest_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
+                dest_path = Path(DECRYPTED_DATA_ROOT, db_asset_name)
 
             if not source_path.exists():
                 logger.warning(f"Source file not found, skipping: {source_path}...")
