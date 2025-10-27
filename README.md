@@ -17,12 +17,12 @@ All utils reside inside the `scripts` folder.
 
 Downloads **ALL** game assets according to your `meta` file.
 If the game is updated, all you have to do is update the `meta` file and re-run this script.
-This only downloads new files, you can set `SKIP_EXISTING` to false inside the script to force a full re-download.
+This only downloads new files, you can set `SKIP_EXISTING` to `False` inside the script to force a full re-download.
 
 Set `HPATHS` inside of the script to `True` if you want the downloaded folder structure to be the same as the game's `dat` folder structure.
 
 **IMPORTANT** If doing a full download, this will suck your machine's network dry.
-Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
+Set `ASYNC_DOWNLOAD` to `False` to download in a less aggressive way.
 
 Uses the decrypted meta file if `decrypt_meta.py` was used before this script.
 

@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 LIMIT = 200
 SKIP_EXISTING = True
-ASYNC_DOWNLOAD = False
+ASYNC_DOWNLOAD = True
 HPATHS = False
 
 if HPATHS:
