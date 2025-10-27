@@ -87,6 +87,7 @@ def save_stories(story_data: list[StoryData]):
     try:
         for story in story_data:
             path = Path(STORY_ROOT, story.kind, f'{story.id}.txt')
+            path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, 'w', encoding='utf8') as f:
                 for episode in story.episodes:
                     f.write(f'Episode {episode.id}:\n')
@@ -136,7 +137,7 @@ def fetch_segment_lines(segment: SegmentData, meta_conn):
     if not asset_key_row:
         logger.warning(f"Asset '{db_asset_name}' not found in meta database. Skipping...")
         return lines
-    
+
     asset_hash = asset_key_row['h']
     is_encrypted = asset_key_row['e'] != 0
     
