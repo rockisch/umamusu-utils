@@ -11,10 +11,15 @@ logger = get_logger(__name__)
 
 LIMIT = 200
 SKIP_EXISTING = True
-ASYNC_DOWNLOAD = False
+ASYNC_DOWNLOAD = True
+HPATHS = False
 
-DATA_ROOT = get_storage_folder('data')
-HOSTNAME = 'https://prd-storage-umamusume.akamaized.net/dl/resources/'
+if HPATHS:
+    DATA_ROOT = get_storage_folder('dat')
+else:
+    DATA_ROOT = get_storage_folder('data')
+
+HOSTNAME = 'https://prd-storage-game-umamusume.akamaized.net/dl/resources/'
 ASSETS_ENDPOINT = HOSTNAME + '/Android/assetbundles/{0:.2}/{0}'
 GENERIC_ENDPOINT = HOSTNAME + '/Generic/{0:.2}/{0}'
 MANIFEST_ENDPOINT = HOSTNAME + '/Manifest/{0:.2}/{0}'
@@ -22,7 +27,6 @@ BLOB_TABLE = 'a'
 BLOB_TABLE_PATH = 'n'
 BLOB_TABLE_HASH = 'h'
 BLOB_TABLE_KIND = 'm'
-
 
 @dataclass
 class BlobRow:
@@ -33,29 +37,26 @@ class BlobRow:
     def __str__(self):
         return self.path
 
-
 def data_download():
     meta_conn = get_meta_conn()
-    loop = asyncio.get_event_loop()
-    total_blobs = meta_conn.execute(f'SELECT COUNT(*) FROM "{BLOB_TABLE}"').fetchone()[0]
+    loop = asyncio.new_event_loop()
+    total_blobs = next(meta_conn.execute(f'SELECT COUNT(*) FROM "{BLOB_TABLE}"'))['COUNT(*)']
     offset = 0
     while offset != total_blobs:
         blob_rows = []
-        for row in meta_conn.execute(f'SELECT "{BLOB_TABLE_PATH}", "{BLOB_TABLE_HASH}", "{BLOB_TABLE_KIND}" FROM "{BLOB_TABLE}" LIMIT {LIMIT} OFFSET {offset}'):
-            blob_row = BlobRow(*row)
+        for row in meta_conn.execute(f'SELECT "{BLOB_TABLE_PATH}" as n, "{BLOB_TABLE_HASH}" as h, "{BLOB_TABLE_KIND}" as m FROM "{BLOB_TABLE}" LIMIT {LIMIT} OFFSET {offset}'):
+            blob_row = BlobRow(path=row['n'], hash=row['h'], kind=row['m'])
             if blob_row.path.startswith('//'):
                 blob_row.path = f'{blob_row.kind}/{blob_row.path[2:]}'
-
             blob_rows.append(blob_row)
-
         offset += len(blob_rows)
         logger.debug(f'downloading files: {offset}/{total_blobs}')
         loop.run_until_complete(save_blob_rows(blob_rows))
 
+    meta_conn.close()
     master_path = Path(DATA_ROOT, 'master.mdb')
     if master_path.exists():
         master_path.rename(Path(STORAGE_ROOT, 'master.mdb'))
-
 
 async def save_blob_rows(blob_rows: List[BlobRow]):
     async with aiohttp.ClientSession() as session:
@@ -64,7 +65,6 @@ async def save_blob_rows(blob_rows: List[BlobRow]):
         else:
             for blob_row in blob_rows:
                 await save_blob_row(session, blob_row)
-
 
 async def save_blob_row(session: aiohttp.ClientSession, blob_row: BlobRow):
     force = not SKIP_EXISTING
@@ -84,7 +84,10 @@ async def save_blob_row(session: aiohttp.ClientSession, blob_row: BlobRow):
         blob_row.path = blob_row.path[:-4]
 
     url = endpoint.format(blob_row.hash)
-    path = Path(DATA_ROOT, blob_row.path)
+    if HPATHS:
+        path = Path(DATA_ROOT, blob_row.hash[:2].upper(), blob_row.hash)
+    else:
+        path = Path(DATA_ROOT, blob_row.path)
     if not force and path.exists():
         return
 
@@ -95,18 +98,14 @@ async def save_blob_row(session: aiohttp.ClientSession, blob_row: BlobRow):
 
         logger.info(f'downloading new file: {blob_row}')
         path.parent.mkdir(parents=True, exist_ok=True)
-
         with path.open('wb') as f:
             while True:
                 chunk = await resp.content.read(1024 * 4)
                 if not chunk:
                     break
-
                 if lz4_context:
                     chunk, b, e = lz4.frame.decompress_chunk(lz4_context, chunk)
-
                 f.write(chunk)
-
 
 if __name__ == '__main__':
     data_download()
