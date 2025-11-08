@@ -1,0 +1,15 @@
+[project]
+name = "umamusu-utils"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.13.2",
+    "lz4>=4.4.5",
+    "pefile>=2024.8.26",
+    "unitypy>=1.23.0",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]

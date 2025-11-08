@@ -9,3 +9,8 @@ logs/*
 # Python cache
 *.pyc
 *.pyo
+
+env/
+
+meta
+master.mdb

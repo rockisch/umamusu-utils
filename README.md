@@ -1,34 +1,28 @@
 # Uma Musume Utils
 
-Utils for scrapping UmaMusume files.
+Utils for scrapping Uma Musume assets and descriptive data.
+
+## Usage
+
+```sh
+# Extracts skill data (name, description, etc) to 'storage/data/skill.json'
+uv run main.py data extract --kind skill
+
+# Extract supportcard and skill icon images to 'storage/assets/'
+uv run main.py assets dump --kind supportcard skill
+uv run main.py assets extract --kind supportcard skill
+```
 
 ## Requirements
 
-You must insert into the `/storage` folder your own copy of the `meta` file.
-It can be fetched from the game's root dir: `/root/data/data/jp.co.cygames.umamusume/files`.
+The recommended way to run the project is using [`uv`](https://github.com/astral-sh/uv).
 
-Each script outputs to a different folder/file in `/storage`, so check that folder after running a script to get the resulting data.
+Some DB files are also needed depending on what you're trying to extract:
+- `data`: Requires `master.mdb` DB file
+- `extract`: Requires `meta` DB file
 
-Some scripts have dependencies, run `pip install -r requirements.txt` to install all of them.
+By default the script will search for them under `%APPDATA%\LocalLow\Cygames\Umamusume`, but you can also specify their location with CLI options.
 
-## Utils
+## Previous Version
 
-All utils reside inside the `scripts` folder.
-
-### data_download
-
-Downloads **ALL** game assets according to your `meta` file.
-If the game is updated, all you have to do is update the `meta` file and re-run this script.
-This only downloads new files, you can set `SKIP_EXISTING` to false inside the script to force a full re-download.
-
-**IMPORTANT** If doing a full download, this will suck your machine's network as hard as a JAV actress.
-Set `ASYNC_DOWNLOAD` to false to download in a less aggressive way.
-
-### items_extract
-
-Extracts stuff related to items.
-
-### story_extract
-
-Extract the strings related to the in-game stories.
-This only extracts new files, you can set `SKIP_EXISTING` to `False` inside the script to force a full extraction.
+A previous version of this project is available under the `old` branch, in case someone depended on it.
