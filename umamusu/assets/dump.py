@@ -31,6 +31,7 @@ def assets_dump(args):
     dat_path = state.appdata_path / "dat"
     assets_path = state.storage_path / "assets"
     skipped = 0
+    i = 0
     for i, (row_path, row_hash, row_kind) in enumerate(rows):
         if i > 0 and i % 5000 == 0:
             logger.debug(f"processed {i} DB rows (skipped {skipped})...")

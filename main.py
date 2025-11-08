@@ -7,21 +7,7 @@ from umamusu.shared import state
 parser = argparse.ArgumentParser(prog="Umamusu Utils")
 subparsers = parser.add_subparsers(required=True)
 
-parser_assets = subparsers.add_parser("assets")
-parser_assets.add_argument(
-    "command", choices=("download", "dump", "extract"), default="extract"
-)
-parser_assets.add_argument("--skip-i", type=int)
-parser_assets.add_argument("--skip-existing", action="store_true")
-parser_assets.add_argument("--async-download", action="store_true")
-parser_assets.add_argument("--kind", nargs="*")
-parser_assets.set_defaults(handler=assets.assets_main)
-
-parser_data = subparsers.add_parser("data")
-parser_data.add_argument("command", choices=("extract",), default="extract")
-parser_data.add_argument("--kind", nargs="*")
-parser_data.set_defaults(handler=data.data_main)
-
+# Generic
 parser.add_argument("--version", choices=("en", "jp", "kr", "tw"), default="en")
 parser.add_argument(
     "--master-file",
@@ -48,6 +34,51 @@ parser.add_argument(
 )
 parser.add_argument("--log", help="Path to the log file (default: stdout)", type=Path)
 
+# Assets
+assets_parser = subparsers.add_parser(
+    "assets",
+    help="commands related to asset (images, videos, music, etc) extraction",
+)
+assets_parser.set_defaults(handler=assets.assets_main)
+data_commands = assets_parser.add_subparsers(required=True, dest="command")
+
+assets_download = data_commands.add_parser(
+    "download",
+    help="Downloads game blobs. Useful when you don't have a game installation on the machine (not yet implemented)",
+)
+assets_download.add_argument("--async-download", action="store_true")
+assets_download.add_argument("--skip-existing", action="store_true")
+assets_download.add_argument("--kind", nargs="*", choices=assets.KINDS)
+
+assets_dump = data_commands.add_parser(
+    "dump",
+    help="Dumps images, videos, BGMs, etc stored in the game blobs",
+)
+assets_dump.add_argument("--skip-i", type=int)
+assets_dump.add_argument("--skip-existing", action="store_true")
+assets_dump.add_argument("--kind", nargs="*", choices=assets.KINDS)
+
+assets_extract = data_commands.add_parser(
+    "extract",
+    help="Extracts files from the dump into user-manageable folders. Only takes into account data previously dumped with the 'assets dump' command",
+)
+assets_extract.add_argument("--kind", nargs="*", choices=assets.KINDS)
+
+# Data
+data_parser = subparsers.add_parser(
+    "data",
+    help="commands related to data (character sheets, skill conditions, inheritance factors, etc) extraction",
+)
+data_parser.set_defaults(handler=data.data_main)
+data_commands = data_parser.add_subparsers(required=True, dest="command")
+
+data_extract = data_commands.add_parser(
+    "extract",
+    help="Extracts data from the game's DB file",
+)
+data_extract.add_argument("--kind", nargs="*", choices=data.KINDS)
+
+# Handling
 args = parser.parse_args()
 
 state.version = args.version
@@ -56,5 +87,7 @@ state.meta_path = args.meta_file
 state.appdata_path = args.appdata_folder
 state.storage_path = args.storage_folder
 state.log_path = args.log
+
+state.storage_path.mkdir(exist_ok=True)
 
 args.handler(args)

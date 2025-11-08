@@ -95,6 +95,7 @@ def get_logger(name: str):
         handler = logging.StreamHandler()
     else:
         logger.setLevel(logging.INFO)
+        state.log_path.mkdir(exist_ok=True)
         handler = logging.FileHandler(
             filename=Path(state.log_path, f"{name}.log"), mode="w+", encoding="utf8"
         )
